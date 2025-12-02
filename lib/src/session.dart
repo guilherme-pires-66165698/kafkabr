@@ -274,7 +274,7 @@ class KafkaSession {
         host,
         port,
         context: sslConfig.securityContext,
-        onBadCertificate: sslConfig.onBadCertificate ?? (cert) => false,
+        onBadCertificate: sslConfig.onBadCertificate ?? (X509Certificate cert) => false,
       );
 
       kafkaLogger.info('SSL connection established to $host:$port');
