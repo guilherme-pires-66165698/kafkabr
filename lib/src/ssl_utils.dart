@@ -9,7 +9,7 @@ class KafkaSSLConfig {
   final SecurityContext? securityContext;
 
   /// Callback to validate server certificates
-  final bool Function(X509Certificate cert, String host, int port)? onBadCertificate;
+  final bool Function(X509Certificate)? onBadCertificate;
 
   const KafkaSSLConfig({
     this.enabled = false,
@@ -27,7 +27,7 @@ class KafkaSSLConfig {
   }
 
   /// Default certificate validation (strict - rejects all bad certificates)
-  static bool _defaultBadCertificateHandler(X509Certificate cert, String host, int port) {
+  static bool _defaultBadCertificateHandler(X509Certificate cert) {
     // Strict validation - do not accept invalid certificates
     return false;
   }
