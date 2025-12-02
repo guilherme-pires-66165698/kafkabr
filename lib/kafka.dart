@@ -28,3 +28,5 @@ part 'src/offset_master.dart';
 part 'src/producer.dart';
 
 part 'src/session.dart';
+
+part 'src/ssl_utils.dart';

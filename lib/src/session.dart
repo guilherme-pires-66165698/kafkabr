@@ -23,6 +23,9 @@ class KafkaSession {
   /// List of Kafka brokers which are used as initial contact points.
   final Queue<ContactPoint> contactPoints;
 
+  /// SSL/TLS configuration
+  final KafkaSSLConfig sslConfig;
+
   Map<String, Future<Socket>> _sockets = Map();
   Map<String, StreamSubscription> _subscriptions = Map();
   Map<String, List<int>> _buffers = Map();
@@ -41,7 +44,13 @@ class KafkaSession {
   /// In case of one of the hosts is temporarily unavailable the session will
   /// rotate them until sucessful response is returned. Error will be thrown
   /// when all of the default hosts are unavailable.
-  KafkaSession(List<ContactPoint> contactPoints) : contactPoints = Queue.from(contactPoints);
+  ///
+  /// [sslConfig] specifies SSL/TLS configuration. If not provided, plaintext
+  /// connections will be used.
+  KafkaSession(
+    List<ContactPoint> contactPoints, {
+    this.sslConfig = const KafkaSSLConfig(),
+  }) : contactPoints = Queue.from(contactPoints);
 
   /// Returns names of all existing topics in the Kafka cluster.
   Future<Set<String>> listTopics() async {
@@ -230,7 +239,13 @@ class KafkaSession {
   Future<Socket> _getSocket(String host, int port) {
     var key = '${host}:${port}';
     if (!_sockets.containsKey(key)) {
-      _sockets[key] = Socket.connect(host, port);
+      // Create SSL or plaintext socket based on configuration
+      if (sslConfig.enabled) {
+        _sockets[key] = _createSecureSocket(host, port);
+      } else {
+        _sockets[key] = Socket.connect(host, port);
+      }
+
       _sockets[key]?.then((socket) {
         socket.setOption(SocketOption.tcpNoDelay, true);
         _buffers[key] = [];
@@ -239,10 +254,35 @@ class KafkaSession {
         _flushFutures[socket] = new Future.value();
       }, onError: (error) {
         _sockets.remove(key);
+        kafkaLogger.severe('Failed to connect to $host:$port - $error');
       });
     }
 
     return _sockets[key]!;
+  }
+
+  /// Creates a secure socket connection with SSL/TLS
+  Future<Socket> _createSecureSocket(String host, int port) async {
+    if (sslConfig.securityContext == null) {
+      throw StateError('SSL is enabled but no SecurityContext was provided');
+    }
+
+    kafkaLogger.fine('Creating SSL connection to $host:$port');
+
+    try {
+      final secureSocket = await SecureSocket.connect(
+        host,
+        port,
+        context: sslConfig.securityContext,
+        onBadCertificate: sslConfig.onBadCertificate ?? (cert) => false,
+      );
+
+      kafkaLogger.info('SSL connection established to $host:$port');
+      return secureSocket;
+    } catch (e) {
+      kafkaLogger.severe('SSL connection failed to $host:$port: $e');
+      rethrow;
+    }
   }
 }
 
